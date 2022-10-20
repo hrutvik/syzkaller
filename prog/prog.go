@@ -4,7 +4,10 @@
 package prog
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"reflect"
 )
 
@@ -166,8 +169,9 @@ func (target *Target) PhysicalAddr(arg *PointerArg) uint64 {
 // Used for BufferType.
 type DataArg struct {
 	ArgCommon
-	data []byte // for in/inout args
-	size uint64 // for out Args
+	compressed bool
+	data       []byte // for in/inout args
+	size       uint64 // for out Args
 }
 
 func MakeDataArg(t Type, dir Dir, data []byte) *DataArg {
@@ -195,14 +199,40 @@ func (arg *DataArg) Data() []byte {
 	if arg.Dir() == DirOut {
 		panic("getting data of output data arg")
 	}
-	return arg.data
+	if !arg.compressed {
+		return arg.data
+	}
+
+	gzipReader, err := gzip.NewReader(bytes.NewReader(arg.data))
+	if err != nil {
+		return nil // TODO is this a reasonable thing to do?
+	}
+	defer gzipReader.Close()
+
+	data, err := io.ReadAll(gzipReader)
+	if err != nil {
+		return nil
+	}
+	return data
 }
 
 func (arg *DataArg) SetData(data []byte) {
 	if arg.Dir() == DirOut {
 		panic("setting data of output data arg")
 	}
-	arg.data = append([]byte{}, data...)
+	if !arg.compressed {
+		arg.data = append([]byte{}, data...)
+	} else {
+		var buffer bytes.Buffer
+		gzipWriter := gzip.NewWriter(&buffer)
+		defer gzipWriter.Close()
+
+		_, err := gzipWriter.Write(data)
+		if err != nil {
+			return // Leave data unchanged.
+		}
+		arg.data = append([]byte{}, buffer.Bytes()...)
+	}
 }
 
 // Used for StructType and ArrayType.

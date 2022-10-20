@@ -309,12 +309,12 @@ func (typ *BufferType) minimize(ctx *minimizeArgsCtx, arg Arg, path string) bool
 		minLen := int(typ.RangeBegin)
 		for step := len(a.Data()) - minLen; len(a.Data()) > minLen && step > 0; {
 			if len(a.Data())-step >= minLen {
-				a.data = a.Data()[:len(a.Data())-step]
+				a.SetData(a.Data()[:len(a.Data())-step])
 				ctx.target.assignSizesCall(ctx.call)
 				if ctx.pred(ctx.p, ctx.callIndex0) {
 					continue
 				}
-				a.data = a.Data()[:len(a.Data())+step]
+				a.SetData(a.Data()[:len(a.Data())+step])
 				ctx.target.assignSizesCall(ctx.call)
 			}
 			step /= 2
@@ -333,14 +333,17 @@ func (typ *BufferType) minimize(ctx *minimizeArgsCtx, arg Arg, path string) bool
 		if !typ.Varlen() {
 			return false
 		}
-		data0 := append([]byte{}, a.Data()...)
-		a.data = bytes.TrimRight(a.Data(), specialFileLenPad+"\x00")
+		data := append([]byte{}, a.Data()...)
+		data0 := append([]byte{}, data...)
+
+		data = bytes.TrimRight(a.Data(), specialFileLenPad+"\x00")
 		if !typ.NoZ {
-			a.data = append(a.data, 0)
+			data = append(data, 0)
 		}
-		if bytes.Equal(a.data, data0) {
+		if bytes.Equal(data, data0) {
 			return false
 		}
+		a.SetData(data)
 		ctx.target.assignSizesCall(ctx.call)
 		if ctx.pred(ctx.p, ctx.callIndex0) {
 			*ctx.p0 = ctx.p
