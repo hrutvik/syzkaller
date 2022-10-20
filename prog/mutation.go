@@ -344,7 +344,7 @@ func (t *BufferType) mutate(r *randGen, s *state, arg Arg, ctx ArgCtx) (calls []
 	if a.Dir() == DirOut {
 		if t.Kind == BufferFilename && r.oneOf(100) {
 			a.size = uint64(r.randFilenameLength())
-		} else {
+		} else if t.Kind != BufferDiskImage {
 			mutateBufferSize(r, a, minLen, maxLen)
 		}
 		return
@@ -374,6 +374,21 @@ func (t *BufferType) mutate(r *randGen, s *state, arg Arg, ctx ArgCtx) (calls []
 	case BufferText:
 		data := append([]byte{}, a.Data()...)
 		a.SetData(r.mutateText(t.Text, data))
+	case BufferDiskImage:
+		data := a.Data()
+		var hm *GenericHeatmap
+		hm.Populate(data)
+		// Roughly one mutation every 256 KB, and at least one mutation.
+		numMutations := r.Intn(len(data)/(1<<18)) + 1
+		for i := 0; i < numMutations; i++ {
+			index := hm.ChooseLocation(r)
+			width := 1 << uint(r.Intn(4))
+			if index+width < len(data) {
+				continue
+			}
+			storeInt(data[index:], r.Uint64(), width)
+		}
+		a.SetData(data)
 	default:
 		panic("unknown buffer kind")
 	}

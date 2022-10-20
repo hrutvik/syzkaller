@@ -639,7 +639,11 @@ func (p *parser) parseArgString(t Type, dir Dir) (Arg, error) {
 			data = []byte(typ.Values[0])
 		}
 	}
-	return MakeDataArg(typ, dir, data), nil
+	result := MakeDataArg(typ, dir, data)
+	if typ.Kind == BufferDiskImage {
+		result.compressed = true
+	}
+	return result, nil
 }
 
 func (p *parser) parseArgStruct(typ Type, dir Dir) (Arg, error) {
@@ -928,7 +932,10 @@ func encodeData(buf *bytes.Buffer, data []byte, readable, cstr bool) {
 }
 
 func isReadableDataType(typ *BufferType) bool {
-	return typ.Kind == BufferString || typ.Kind == BufferFilename || typ.Kind == BufferGlob
+	return typ.Kind == BufferString ||
+		typ.Kind == BufferFilename ||
+		typ.Kind == BufferGlob ||
+		typ.Kind == BufferDiskImage
 }
 
 func isReadableData(data []byte) bool {

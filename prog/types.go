@@ -484,6 +484,7 @@ const (
 	BufferFilename
 	BufferText
 	BufferGlob
+	BufferDiskImage
 )
 
 type TextKind int

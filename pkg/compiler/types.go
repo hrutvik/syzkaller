@@ -830,6 +830,36 @@ var typeFmtFormat = &typeArg{
 	Kind:  kindIdent,
 }
 
+// TODO this needs careful checking and refinement.
+var typeCompressedImage = &typeDesc{
+	Names:     []string{"compressed_image"},
+	CantBeOpt: true,
+	CantBeOut: true,
+	OptArgs:   0,
+	Args: []namedArg{
+		{Name: "filesystem", Type: typeArgStringFlags},
+		// TODO should we create a new typeArgString? Can we restrict it to be only the formats we support so far?
+	},
+
+	CanBeArgRet: func(comp *compiler, t *ast.Type) (bool, bool) {
+		return true, false
+	},
+
+	Varlen: func(comp *compiler, t *ast.Type, args []*ast.Type) bool {
+		return true
+	},
+
+	// Gen generates corresponding prog.Type.
+	Gen: func(comp *compiler, t *ast.Type, args []*ast.Type, base prog.IntTypeCommon) prog.Type {
+		return &prog.BufferType{
+			TypeCommon: base.TypeCommon,
+			Kind:       prog.BufferDiskImage,
+			SubKind:    args[0].Ident,
+			Values:     comp.genStrings(t, args),
+		}
+	},
+}
+
 // typeArgType is used as placeholder for any type (e.g. ptr target type).
 var typeArgType = &typeArg{}
 
@@ -1116,6 +1146,7 @@ func init() {
 		typeText,
 		typeString,
 		typeFmt,
+		typeCompressedImage,
 	}
 	for _, desc := range builtins {
 		for _, name := range desc.Names {

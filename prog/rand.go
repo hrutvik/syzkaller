@@ -768,6 +768,8 @@ func (a *BufferType) generate(r *randGen, s *state, dir Dir) (arg Arg, calls []*
 			return MakeOutDataArg(a, dir, uint64(r.Intn(100))), nil
 		}
 		return MakeDataArg(a, dir, r.generateText(a.Text)), nil
+	case BufferDiskImage:
+		return nil, nil // TODO what should we do here?
 	default:
 		panic("unknown buffer kind")
 	}
