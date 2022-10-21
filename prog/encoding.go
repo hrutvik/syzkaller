@@ -146,7 +146,7 @@ func (a *DataArg) serialize(ctx *serializer) {
 		ctx.printf("\"\"/%v", a.Size())
 		return
 	}
-	data := a.Data()
+	data := a.data
 	// Statically typed data will be padded with 0s during deserialization,
 	// so we can strip them here for readability always. For variable-size
 	// data we strip trailing 0s only if we strip enough of them.
@@ -156,6 +156,9 @@ func (a *DataArg) serialize(ctx *serializer) {
 	}
 	if typ.Varlen() && len(data)+8 >= sz {
 		data = data[:sz]
+	}
+	if a.compressed {
+		ctx.printf("c")
 	}
 	serializeData(ctx.buf, data, isReadableDataType(typ))
 	if typ.Varlen() && sz != len(data) {
@@ -432,6 +435,21 @@ func (p *parser) parseArgImpl(typ Type, dir Dir) (Arg, error) {
 		return p.parseArgAddr(typ, dir)
 	case '"', '\'':
 		return p.parseArgString(typ, dir)
+	case 'c':
+		p.Parse('c')
+		if c := p.Char(); c != '"' && c != '\'' {
+			return nil, fmt.Errorf("failed to parse argument at '%c' (line #%v/%v: %v)",
+				p.Char(), p.l, p.i, p.s)
+		}
+		if dir == DirOut {
+			return nil, nil // TODO we can't generate compressed arguments
+		}
+		arg, err := p.parseArgString(typ, dir)
+		if err != nil {
+			return nil, err
+		}
+		arg.(*DataArg).compressed = true
+		return arg, nil
 	case '{':
 		return p.parseArgStruct(typ, dir)
 	case '[':

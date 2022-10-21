@@ -207,6 +207,7 @@ const uint64 arg_const = 0;
 const uint64 arg_result = 1;
 const uint64 arg_data = 2;
 const uint64 arg_csum = 3;
+const uint64 arg_compressed_data = 4;
 
 const uint64 binary_format_native = 0;
 const uint64 binary_format_bigendian = 1;
@@ -793,6 +794,15 @@ void execute_one()
 				uint64 size = read_input(&input_pos);
 				size &= ~(1ull << 63); // readable flag
 				NONFAILING(memcpy(addr, input_pos, size));
+				// Read out the data.
+				for (uint64 i = 0; i < (size + 7) / 8; i++)
+					read_input(&input_pos);
+				break;
+			}
+			case arg_compressed_data: {
+				uint64 size = read_input(&input_pos);
+				size &= ~(1ull << 63); // readable flag
+				// TODO: decompress the data and copy to addr
 				// Read out the data.
 				for (uint64 i = 0; i < (size + 7) / 8; i++)
 					read_input(&input_pos);

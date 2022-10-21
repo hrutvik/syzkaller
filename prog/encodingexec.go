@@ -38,6 +38,7 @@ const (
 	execArgResult
 	execArgData
 	execArgCsum
+	execArgCompressedData
 
 	execArgDataReadable = uint64(1 << 63)
 )
@@ -280,25 +281,29 @@ func (w *execContext) writeArg(arg Arg) {
 	case *PointerArg:
 		w.writeConstArg(a.Size(), w.target.PhysicalAddr(a), 0, 0, 0, FormatNative)
 	case *DataArg:
-		data := a.Data()
-		if len(data) == 0 {
+		rawData := a.data
+		if len(rawData) == 0 {
 			return
 		}
-		w.write(execArgData)
-		flags := uint64(len(data))
+		if a.compressed {
+			w.write(execArgCompressedData)
+		} else {
+			w.write(execArgData)
+		}
+		flags := uint64(len(rawData))
 		if isReadableDataType(a.Type().(*BufferType)) {
 			flags |= execArgDataReadable
 		}
 		w.write(flags)
-		padded := len(data)
-		if pad := 8 - len(data)%8; pad != 8 {
+		padded := len(rawData)
+		if pad := 8 - len(rawData)%8; pad != 8 {
 			padded += pad
 		}
 		if len(w.buf) < padded {
 			w.eof = true
 		} else {
-			copy(w.buf, data)
-			copy(w.buf[len(data):], make([]byte, 8))
+			copy(w.buf, rawData)
+			copy(w.buf[len(rawData):], make([]byte, 8))
 			w.buf = w.buf[padded:]
 		}
 	case *UnionArg:

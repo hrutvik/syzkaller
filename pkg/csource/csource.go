@@ -423,7 +423,12 @@ func (ctx *context) copyin(w *bytes.Buffer, csumSeq *int, copyin prog.ExecCopyin
 	case prog.ExecArgResult:
 		ctx.copyinVal(w, copyin.Addr, arg.Size, ctx.resultArgToStr(arg), arg.Format)
 	case prog.ExecArgData:
-		if bytes.Equal(arg.Data, bytes.Repeat(arg.Data[:1], len(arg.Data))) {
+		if arg.Compressed {
+			fmt.Fprintf(w, "\tTODO DECOMPRESS using zlib%x, \"%s\", %v));\n",
+				copyin.Addr, toCString(arg.Data, arg.Readable), len(arg.Data))
+			fmt.Fprintf(w, "\tNONFAILING(memcpy((void*)0x%x, \"%s\", %v));\n",
+				copyin.Addr, toCString(arg.Data, arg.Readable), len(arg.Data))
+		} else if bytes.Equal(arg.Data, bytes.Repeat(arg.Data[:1], len(arg.Data))) {
 			fmt.Fprintf(w, "\tNONFAILING(memset((void*)0x%x, %v, %v));\n",
 				copyin.Addr, arg.Data[0], len(arg.Data))
 		} else {
