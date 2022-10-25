@@ -180,7 +180,7 @@ func (target *Target) squashPtrImpl(a Arg, elems *[]Arg) {
 			pad = arg.Size()
 		} else {
 			elem := target.ensureDataElem(elems)
-			elem.data = append(elem.Data(), arg.Data()...)
+			elem.SetData(append(elem.Data(), arg.Data()...))
 		}
 	case *GroupArg:
 		target.squashGroup(arg, elems)
@@ -189,14 +189,14 @@ func (target *Target) squashPtrImpl(a Arg, elems *[]Arg) {
 	}
 	if pad != 0 {
 		elem := target.ensureDataElem(elems)
-		elem.data = append(elem.Data(), make([]byte, pad)...)
+		elem.SetData(append(elem.Data(), make([]byte, pad)...))
 	}
 }
 
 func (target *Target) squashConst(arg *ConstArg, elems *[]Arg) {
 	if IsPad(arg.Type()) {
 		elem := target.ensureDataElem(elems)
-		elem.data = append(elem.Data(), make([]byte, arg.Size())...)
+		elem.SetData(append(elem.Data(), make([]byte, arg.Size())...))
 		return
 	}
 	v, bf := target.squashedValue(arg)
@@ -220,7 +220,7 @@ func (target *Target) squashConst(arg *ConstArg, elems *[]Arg) {
 		panic("squashed value of wrong size")
 	}
 	elem := target.ensureDataElem(elems)
-	elem.data = append(elem.Data(), data...)
+	elem.SetData(append(elem.Data(), data...))
 }
 
 func (target *Target) squashResult(arg *ResultArg, elems *[]Arg) {
@@ -275,7 +275,7 @@ func (target *Target) squashGroup(arg *GroupArg, elems *[]Arg) {
 			if fld.Size() != 0 {
 				elem := target.ensureDataElem(elems)
 				for i := uint64(0); i < fld.Size(); i++ {
-					elem.data = append(elem.Data(), byte(bitfield))
+					elem.SetData(append(elem.Data(), byte(bitfield)))
 					bitfield >>= 8
 				}
 				bitfield = 0
@@ -287,7 +287,7 @@ func (target *Target) squashGroup(arg *GroupArg, elems *[]Arg) {
 	// Add padding either due to dynamic alignment or overlay fields.
 	if pad := arg.Size() - fieldsSize; pad != 0 {
 		elem := target.ensureDataElem(elems)
-		elem.data = append(elem.Data(), make([]byte, pad)...)
+		elem.SetData(append(elem.Data(), make([]byte, pad)...))
 	}
 }
 
