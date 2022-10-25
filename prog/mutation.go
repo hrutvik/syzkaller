@@ -125,7 +125,7 @@ func (ctx *mutator) squashAny() bool {
 	arg := blobs[idx]
 	base := bases[idx]
 	baseSize := base.Res.Size()
-	arg.data = mutateData(r, arg.Data(), 0, maxBlobLen)
+	arg.SetData(mutateData(r, arg.Data(), 0, maxBlobLen))
 	// Update base pointer if size has increased.
 	if baseSize < base.Res.Size() {
 		newArg := r.allocAddr(s, base.Type(), base.Dir(), base.Res.Size(), base.Res)
@@ -352,28 +352,28 @@ func (t *BufferType) mutate(r *randGen, s *state, arg Arg, ctx ArgCtx) (calls []
 	switch t.Kind {
 	case BufferBlobRand, BufferBlobRange:
 		data := append([]byte{}, a.Data()...)
-		a.data = mutateData(r, data, minLen, maxLen)
+		a.SetData(mutateData(r, data, minLen, maxLen))
 	case BufferString:
 		if len(t.Values) != 0 {
-			a.data = r.randString(s, t)
+			a.SetData(r.randString(s, t))
 		} else {
 			if t.TypeSize != 0 {
 				minLen, maxLen = t.TypeSize, t.TypeSize
 			}
 			data := append([]byte{}, a.Data()...)
-			a.data = mutateData(r, data, minLen, maxLen)
+			a.SetData(mutateData(r, data, minLen, maxLen))
 		}
 	case BufferFilename:
-		a.data = []byte(r.filename(s, t))
+		a.SetData([]byte(r.filename(s, t)))
 	case BufferGlob:
 		if len(t.Values) != 0 {
-			a.data = r.randString(s, t)
+			a.SetData(r.randString(s, t))
 		} else {
-			a.data = []byte(r.filename(s, t))
+			a.SetData([]byte(r.filename(s, t)))
 		}
 	case BufferText:
 		data := append([]byte{}, a.Data()...)
-		a.data = r.mutateText(t.Text, data)
+		a.SetData(r.mutateText(t.Text, data))
 	default:
 		panic("unknown buffer kind")
 	}
