@@ -146,20 +146,24 @@ func (a *DataArg) serialize(ctx *serializer) {
 		ctx.printf("\"\"/%v", a.Size())
 		return
 	}
-	data := a.Data()
-	// Statically typed data will be padded with 0s during deserialization,
-	// so we can strip them here for readability always. For variable-size
-	// data we strip trailing 0s only if we strip enough of them.
-	sz := len(data)
-	for len(data) >= 2 && data[len(data)-1] == 0 && data[len(data)-2] == 0 {
-		data = data[:len(data)-1]
-	}
-	if typ.Varlen() && len(data)+8 >= sz {
-		data = data[:sz]
-	}
-	serializeData(ctx.buf, data, isReadableDataType(typ))
-	if typ.Varlen() && sz != len(data) {
-		ctx.printf("/%v", sz)
+	data := a.data
+	if typ.IsCompressed() {
+		serializeCompressedData(ctx.buf, data)
+	} else {
+		// Statically typed data will be padded with 0s during deserialization,
+		// so we can strip them here for readability always. For variable-size
+		// data we strip trailing 0s only if we strip enough of them.
+		sz := len(data)
+		for len(data) >= 2 && data[len(data)-1] == 0 && data[len(data)-2] == 0 {
+			data = data[:len(data)-1]
+		}
+		if typ.Varlen() && len(data)+8 >= sz {
+			data = data[:sz]
+		}
+		serializeData(ctx.buf, data, isReadableDataType(typ))
+		if typ.Varlen() && sz != len(data) {
+			ctx.printf("/%v", sz)
+		}
 	}
 }
 
@@ -593,12 +597,12 @@ func (p *parser) parseArgString(t Type, dir Dir) (Arg, error) {
 		p.eatExcessive(true, "wrong string arg")
 		return t.DefaultArg(dir), nil
 	}
-	data, err := p.deserializeData()
+	data, b64, err := p.deserializeData()
 	if err != nil {
 		return nil, err
 	}
 	size := ^uint64(0)
-	if p.Char() == '/' {
+	if p.Char() == '/' && !b64 {
 		p.Parse('/')
 		sizeStr := p.Ident()
 		size, err = strconv.ParseUint(sizeStr, 0, 64)
@@ -639,7 +643,7 @@ func (p *parser) parseArgString(t Type, dir Dir) (Arg, error) {
 			data = []byte(typ.Values[0])
 		}
 	}
-	return MakeDataArg(typ, dir, data), nil
+	return MakeRawDataArg(typ, dir, data), nil
 }
 
 func (p *parser) parseArgStruct(typ Type, dir Dir) (Arg, error) {
@@ -871,6 +875,17 @@ func serializeData(buf *bytes.Buffer, data []byte, readable bool) {
 	buf.WriteByte('\'')
 }
 
+func serializeCompressedData(buf *bytes.Buffer, data []byte) {
+	buf.WriteByte('"')
+	buf.WriteByte('$')
+	encoded, err := EncodeB64(data)
+	if err != nil {
+		panic(fmt.Errorf("could not serialize compressed data: %v", err))
+	}
+	buf.Write(encoded)
+	buf.WriteByte('"')
+}
+
 func EncodeData(buf *bytes.Buffer, data []byte, readable bool) {
 	if !readable && isReadableData(data) {
 		readable = true
@@ -948,10 +963,26 @@ func isReadableData(data []byte) bool {
 	return true
 }
 
-func (p *parser) deserializeData() ([]byte, error) {
+// Deserialize data, returning the data and whether it was encoded in Base64.
+func (p *parser) deserializeData() ([]byte, bool, error) {
 	var data []byte
 	if p.Char() == '"' {
 		p.Parse('"')
+		if p.Char() == '$' {
+			// Read Base64 data.
+			p.consume()
+			var rawData []byte
+			for p.Char() != '"' {
+				v := p.consume()
+				rawData = append(rawData, v)
+			}
+			decoded, err := DecodeB64(rawData)
+			if err != nil {
+				return nil, false, fmt.Errorf("data arg is corrupt: %v", err)
+			}
+			p.Parse('"')
+			return decoded, true, nil
+		}
 		val := ""
 		if p.Char() != '"' {
 			val = p.Ident()
@@ -960,11 +991,11 @@ func (p *parser) deserializeData() ([]byte, error) {
 		var err error
 		data, err = hex.DecodeString(val)
 		if err != nil {
-			return nil, fmt.Errorf("data arg has bad value %q", val)
+			return nil, false, fmt.Errorf("data arg has bad value %q", val)
 		}
 	} else {
 		if p.consume() != '\'' {
-			return nil, fmt.Errorf("data arg does not start with \" nor with '")
+			return nil, false, fmt.Errorf("data arg does not start with \" nor with '")
 		}
 		for p.Char() != '\'' && p.Char() != 0 {
 			v := p.consume()
@@ -979,7 +1010,7 @@ func (p *parser) deserializeData() ([]byte, error) {
 				lo := p.consume()
 				b, ok := hexToByte(lo, hi)
 				if !ok {
-					return nil, fmt.Errorf("invalid hex \\x%v%v in data arg", hi, lo)
+					return nil, false, fmt.Errorf("invalid hex \\x%v%v in data arg", hi, lo)
 				}
 				data = append(data, b)
 			case 'a':
@@ -1003,12 +1034,12 @@ func (p *parser) deserializeData() ([]byte, error) {
 			case '\\':
 				data = append(data, '\\')
 			default:
-				return nil, fmt.Errorf("invalid \\%c escape sequence in data arg", v)
+				return nil, false, fmt.Errorf("invalid \\%c escape sequence in data arg", v)
 			}
 		}
 		p.Parse('\'')
 	}
-	return data, nil
+	return data, false, nil
 }
 
 func isPrintable(v byte) bool {

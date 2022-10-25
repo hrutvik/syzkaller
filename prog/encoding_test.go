@@ -30,13 +30,17 @@ func TestSerializeData(t *testing.T) {
 			for i := range data {
 				data[i] = byte(r.Intn(256))
 			}
+			if 0 < len(data) && data[0] == '$' {
+				// Do not attempt to test Base64 data, denoted by leading '$'.
+				continue
+			}
 			buf := new(bytes.Buffer)
 			serializeData(buf, data, readable)
 			p := newParser(nil, buf.Bytes(), true)
 			if !p.Scan() {
 				t.Fatalf("parser does not scan")
 			}
-			data1, err := p.deserializeData()
+			data1, _, err := p.deserializeData()
 			if err != nil {
 				t.Fatalf("failed to deserialize %q -> %s: %v", data, buf.Bytes(), err)
 			}
@@ -343,6 +347,13 @@ func TestSerializeDeserialize(t *testing.T) {
 		{
 			In:  `serialize1(&(0x7f0000000000)="0000000000000000", 0x8)`,
 			Out: `serialize1(&(0x7f0000000000)=""/8, 0x8)`,
+		},
+		{
+			In:  `serialize2(&(0x7f0000000000)="$c3l6a2FsbGVy")`,
+			Out: `serialize2(&(0x7f0000000000)='syzkaller')`,
+		},
+		{
+			In: `serialize3(&(0x7f0000000000)="$H4sIAAAAAAAA/yqurMpOzMlJLQIEAAD//wm6/YQJAAAA")`,
 		},
 	})
 }

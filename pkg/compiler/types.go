@@ -830,9 +830,9 @@ var typeFmtFormat = &typeArg{
 	Kind:  kindIdent,
 }
 
-// typeCompressed is used for compressed data.
-var typeCompressed = &typeDesc{
-	Names:     []string{"compressed"},
+// typeCompressedImage is used for compressed disk images.
+var typeCompressedImage = &typeDesc{
+	Names:     []string{"compressed_image"},
 	CantBeOpt: true,
 	CantBeOut: true,
 	OptArgs:   0,
@@ -1138,7 +1138,7 @@ func init() {
 		typeText,
 		typeString,
 		typeFmt,
-		typeCompressed,
+		typeCompressedImage,
 	}
 	for _, desc := range builtins {
 		for _, name := range desc.Names {

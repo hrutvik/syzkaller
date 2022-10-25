@@ -179,6 +179,16 @@ func MakeDataArg(t Type, dir Dir, data []byte) *DataArg {
 	return result
 }
 
+// Like MakeDataArg, but sets data directly - i.e. no compression.
+func MakeRawDataArg(t Type, dir Dir, data []byte) *DataArg {
+	if dir == DirOut {
+		panic("non-empty output data arg")
+	}
+	result := &DataArg{ArgCommon: ArgCommon{ref: t.ref(), dir: dir}}
+	result.data = data
+	return result
+}
+
 func MakeOutDataArg(t Type, dir Dir, size uint64) *DataArg {
 	if dir != DirOut {
 		panic("empty input data arg")
