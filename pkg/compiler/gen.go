@@ -125,7 +125,7 @@ func (comp *compiler) genSyscall(n *ast.Call, argSizes []uint64) *prog.Syscall {
 		}
 	}
 	fields, _ := comp.genFieldArray(n.Args, argSizes)
-	return &prog.Syscall{
+	result := &prog.Syscall{
 		Name:        n.Name.Name,
 		CallName:    n.CallName,
 		NR:          n.NR,
@@ -134,6 +134,8 @@ func (comp *compiler) genSyscall(n *ast.Call, argSizes []uint64) *prog.Syscall {
 		Ret:         ret,
 		Attrs:       attrs,
 	}
+	checkCompressedArgs(result)
+	return result
 }
 
 type typeProxy struct {
@@ -562,4 +564,17 @@ func genStrArray(a []*ast.String) []string {
 		r[i] = v.Value
 	}
 	return r
+}
+
+func checkCompressedArgs(c *prog.Syscall) {
+	if c.Attrs.NoGenerate && c.Attrs.NoMinimize {
+		return
+	}
+
+	for _, arg := range c.Args {
+		if prog.ContainsCompressed(arg.Type) {
+			panic(fmt.Sprintf("call %s with compressed arg %s must be `no_generate` and `no_minimize` (currently %v, %v)",
+				c.Name, arg.Name, c.Attrs.NoGenerate, c.Attrs.NoMinimize))
+		}
+	}
 }

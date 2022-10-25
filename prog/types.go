@@ -484,6 +484,7 @@ const (
 	BufferFilename
 	BufferText
 	BufferGlob
+	BufferCompressed
 )
 
 type TextKind int
@@ -552,6 +553,55 @@ func (t *BufferType) isDefaultArg(arg Arg) bool {
 		}
 	}
 	return true
+}
+
+func (t *BufferType) IsCompressed() bool {
+	return t.Kind == BufferCompressed
+}
+
+func ContainsCompressed(t Type) bool {
+	visited := make(map[Type]bool)
+	return containsCompressedImpl(t, visited)
+}
+
+func containsCompressedImpl(t Type, visited map[Type]bool) bool {
+	if visited[t] {
+		return false
+	}
+	visited[t] = true
+
+	bt, ok := t.(*BufferType)
+	if ok {
+		return bt.IsCompressed()
+	}
+	at, ok := t.(*ArrayType)
+	if ok {
+		return containsCompressedImpl(at.Elem, visited)
+	}
+	pt, ok := t.(*PtrType)
+	if ok {
+		return containsCompressedImpl(pt.Elem, visited)
+	}
+	st, ok := t.(*StructType)
+	if ok {
+		for _, field := range st.Fields {
+			if containsCompressedImpl(field.Type, visited) {
+				return true
+			}
+		}
+		return false
+	}
+
+	ut, ok := t.(*UnionType)
+	if ok {
+		for _, field := range ut.Fields {
+			if containsCompressedImpl(field.Type, visited) {
+				return true
+			}
+		}
+		return false
+	}
+	return false
 }
 
 type ArrayKind int

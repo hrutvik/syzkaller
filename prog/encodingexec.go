@@ -280,7 +280,7 @@ func (w *execContext) writeArg(arg Arg) {
 	case *PointerArg:
 		w.writeConstArg(a.Size(), w.target.PhysicalAddr(a), 0, 0, 0, FormatNative)
 	case *DataArg:
-		data := a.Data()
+		data := a.RawData()
 		if len(data) == 0 {
 			return
 		}

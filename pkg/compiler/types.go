@@ -830,6 +830,28 @@ var typeFmtFormat = &typeArg{
 	Kind:  kindIdent,
 }
 
+// typeCompressed is used for compressed data.
+var typeCompressed = &typeDesc{
+	Names:     []string{"compressed"},
+	CantBeOpt: true,
+	CantBeOut: true,
+	OptArgs:   0,
+	CanBeArgRet: func(comp *compiler, t *ast.Type) (bool, bool) {
+		return true, false
+	},
+	Varlen: func(comp *compiler, t *ast.Type, args []*ast.Type) bool {
+		return true
+	},
+	Gen: func(comp *compiler, t *ast.Type, args []*ast.Type, base prog.IntTypeCommon) prog.Type {
+		base.TypeSize = 0
+		base.TypeAlign = 1
+		return &prog.BufferType{
+			TypeCommon: base.TypeCommon,
+			Kind:       prog.BufferCompressed,
+		}
+	},
+}
+
 // typeArgType is used as placeholder for any type (e.g. ptr target type).
 var typeArgType = &typeArg{}
 
@@ -1116,6 +1138,7 @@ func init() {
 		typeText,
 		typeString,
 		typeFmt,
+		typeCompressed,
 	}
 	for _, desc := range builtins {
 		for _, name := range desc.Names {
