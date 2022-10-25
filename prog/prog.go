@@ -174,7 +174,9 @@ func MakeDataArg(t Type, dir Dir, data []byte) *DataArg {
 	if dir == DirOut {
 		panic("non-empty output data arg")
 	}
-	return &DataArg{ArgCommon: ArgCommon{ref: t.ref(), dir: dir}, data: append([]byte{}, data...)}
+	result := &DataArg{ArgCommon: ArgCommon{ref: t.ref(), dir: dir}}
+	result.SetData(data)
+	return result
 }
 
 func MakeOutDataArg(t Type, dir Dir, size uint64) *DataArg {
