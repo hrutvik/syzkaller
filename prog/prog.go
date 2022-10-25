@@ -195,12 +195,26 @@ func (arg *DataArg) Data() []byte {
 	if arg.Dir() == DirOut {
 		panic("getting data of output data arg")
 	}
+	if t, ok := arg.Type().(*BufferType); ok && t.IsCompressed() {
+		data, err := Decompress(arg.data)
+		if err != nil {
+			return nil
+		}
+		return data
+	}
 	return arg.data
 }
 
 func (arg *DataArg) SetData(data []byte) {
 	if arg.Dir() == DirOut {
 		panic("setting data of output data arg")
+	}
+	if t, ok := arg.Type().(*BufferType); ok && t.IsCompressed() {
+		compressedData, err := Compress(data)
+		if err != nil {
+			return // Leave data unchanged.
+		}
+		arg.data = compressedData
 	}
 	arg.data = append([]byte{}, data...)
 }

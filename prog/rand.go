@@ -727,6 +727,9 @@ func (a *ResourceType) generate(r *randGen, s *state, dir Dir) (arg Arg, calls [
 }
 
 func (a *BufferType) generate(r *randGen, s *state, dir Dir) (arg Arg, calls []*Call) {
+	if a.IsCompressed() {
+		panic(fmt.Sprintf("can't generate compressed type %v", a))
+	}
 	switch a.Kind {
 	case BufferBlobRand, BufferBlobRange:
 		sz := r.randBufLen()

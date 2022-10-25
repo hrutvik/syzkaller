@@ -298,7 +298,7 @@ func (typ *ResourceType) minimize(ctx *minimizeArgsCtx, arg Arg, path string) bo
 }
 
 func (typ *BufferType) minimize(ctx *minimizeArgsCtx, arg Arg, path string) bool {
-	if arg.Dir() == DirOut {
+	if arg.Dir() == DirOut || typ.IsCompressed() {
 		return false
 	}
 	a := arg.(*DataArg)

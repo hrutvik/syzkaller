@@ -104,7 +104,9 @@ func (target *Target) calcResourceUsage() map[string]map[int]weights {
 			case BufferFilename:
 				noteUsage(uses, c, 10, DirIn, "filename")
 			default:
-				panic("unknown buffer kind")
+				if bt := t.(*BufferType); !bt.IsCompressed() {
+					panic("unknown buffer kind")
+				}
 			}
 		case *VmaType:
 			noteUsage(uses, c, 5, ctx.Dir, "vma")
