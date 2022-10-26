@@ -12,7 +12,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends
 	sudo make python nano git curl ca-certificates binutils g++ \
 	g++-arm-linux-gnueabi g++-aarch64-linux-gnu g++-powerpc64le-linux-gnu \
 	g++-mips64el-linux-gnuabi64 g++-s390x-linux-gnu g++-riscv64-linux-gnu \
-	libc6-dev-i386 libc6-dev-i386-amd64-cross lib32gcc-10-dev lib32stdc++-10-dev \
+	libc6-dev-i386 libc6-dev-i386-amd64-cross lib32gcc-10-dev lib32stdc++-10-dev zlib1g zlib1g-dev \
 	# These are needed to build Linux kernel:
 	flex bison bc libelf-dev libssl-dev \
 	# qemu-user is required to run alien arch binaries in pkg/cover tests.

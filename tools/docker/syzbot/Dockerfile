@@ -16,7 +16,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y -q \
 	unzip curl sudo procps psmisc nano vim git bzip2 dh-autoreconf software-properties-common \
 	# These are needed to build Linux kernel:
 	flex bison bc gawk dwarves cpio texinfo texi2html lzop lbzip2 \
-	zlib1g-dev libelf-dev libncurses-dev libmpc-dev libssl-dev \
+	zlib1g zlib1g-dev libelf-dev libncurses-dev libmpc-dev libssl-dev \
 	# This is required to run alien arch binaries in pkg/cover tests:
 	qemu-user \
 	# These are required to run foreign arch kernels:
