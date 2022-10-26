@@ -558,6 +558,7 @@ var (
 		"-Wno-stringop-overflow",
 		"-Wno-array-bounds",
 		"-Wno-format-overflow",
+		"-lz", // TODO: this is just a placeholder while we try to provide consistent zlib support.
 	}
 	optionalCFlags = map[string]bool{
 		"-static":                 true, // some distributions don't have static libraries
