@@ -6292,19 +6292,81 @@ static long syz_genetlink_get_family_id(volatile long name, volatile long sock_a
 #endif
 
 #if SYZ_EXECUTOR || __NR_syz_mount_image || __NR_syz_read_part_table
+
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+#include <zlib.h>
+#define CHUNK 4096
+
+static void cleanup(z_stream* stream, FILE* source, FILE* dest)
+{
+	inflateEnd(stream);
+	fclose(source);
+	fclose(dest);
+}
+static int decompress(unsigned char* input, size_t length, int dest_fd)
+{
+
+	unsigned char in[CHUNK];
+	unsigned char out[CHUNK];
+	z_stream stream;
+	stream.zalloc = Z_NULL;
+	stream.zfree = Z_NULL;
+	stream.opaque = Z_NULL;
+	stream.avail_in = 0;
+	stream.next_in = Z_NULL;
+	int ret = inflateInit2(&stream, 16 + MAX_WBITS);
+	if (ret != Z_OK)
+		return ret;
+	FILE* source = fmemopen(input, length, "r");
+	if (errno)
+		return Z_ERRNO;
+	FILE* dest = fdopen(dest_fd, "w");
+	if (errno)
+		return Z_ERRNO;
+	do {
+		stream.avail_in = fread(in, 1, CHUNK, source);
+		if (ferror(source)) {
+			cleanup(&stream, source, dest);
+			return Z_ERRNO;
+		}
+		if (stream.avail_in == 0)
+			break;
+		stream.next_in = in;
+		do {
+			stream.avail_out = CHUNK;
+			stream.next_out = out;
+			ret = inflate(&stream, Z_NO_FLUSH);
+			assert(ret != Z_STREAM_ERROR);
+			switch (ret) {
+			case Z_NEED_DICT:
+				ret = Z_DATA_ERROR;
+			case Z_DATA_ERROR:
+			case Z_MEM_ERROR:
+				cleanup(&stream, source, dest);
+				return ret;
+			}
+			unsigned int have = CHUNK - stream.avail_out;
+			if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
+				cleanup(&stream, source, dest);
+				return Z_ERRNO;
+			}
+		} while (stream.avail_out == 0);
+
+	} while (ret != Z_STREAM_END);
+
+	cleanup(&stream, source, dest);
+	return ret == Z_STREAM_END ? Z_OK : Z_DATA_ERROR;
+}
+
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/loop.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
-struct fs_image_segment {
-	void* data;
-	uintptr_t size;
-	uintptr_t offset;
-};
-static int setup_loop_device(long unsigned size, long unsigned nsegs, struct fs_image_segment* segs, const char* loopname, int* memfd_p, int* loopfd_p)
+static int setup_loop_device(long unsigned size, long unsigned compressed_size, unsigned char* data, const char* loopname, int* memfd_p, int* loopfd_p)
 {
 	int err = 0, loopfd = -1;
 	int memfd = syscall(__NR_memfd_create, "syzkaller", 0);
@@ -6316,10 +6378,14 @@ static int setup_loop_device(long unsigned size, long unsigned nsegs, struct fs_
 		err = errno;
 		goto error_close_memfd;
 	}
-	for (size_t i = 0; i < nsegs; i++) {
-		if (pwrite(memfd, segs[i].data, segs[i].size, segs[i].offset) < 0) {
-			debug("setup_loop_device: pwrite[%zu] failed: %d\n", i, errno);
-		}
+
+	err = decompress(data, compressed_size, memfd);
+	if (err == Z_ERRNO) {
+		debug("setup_loop_device: could not decompress data: zlib read/write error %d\n", errno);
+		goto error_close_memfd;
+	} else if (err) {
+		debug("setup_loop_device: could not decompress data: zlib error %d\n", err);
+		goto error_close_memfd;
 	}
 
 	loopfd = open(loopname, O_RDWR);
@@ -6355,14 +6421,14 @@ error:
 #endif
 
 #if SYZ_EXECUTOR || __NR_syz_read_part_table
-static long syz_read_part_table(volatile unsigned long size, volatile unsigned long nsegs, volatile long segments)
+static long syz_read_part_table(volatile unsigned long size, volatile unsigned long compressed_size, volatile long image)
 {
-	struct fs_image_segment* segs = (struct fs_image_segment*)segments;
+	unsigned char* data = (unsigned char*)image;
 	int err = 0, res = -1, loopfd = -1, memfd = -1;
 	char loopname[64];
 
 	snprintf(loopname, sizeof(loopname), "/dev/loop%llu", procid);
-	if (setup_loop_device(size, nsegs, segs, loopname, &memfd, &loopfd) == -1)
+	if (setup_loop_device(size, compressed_size, data, loopname, &memfd, &loopfd) == -1)
 		return -1;
 
 	struct loop_info64 info;
@@ -6403,10 +6469,18 @@ error_clear_loop:
 #include <stddef.h>
 #include <string.h>
 #include <sys/mount.h>
-static long syz_mount_image(volatile long fsarg, volatile long dir, volatile unsigned long size, volatile unsigned long nsegs, volatile long segments, volatile long flags, volatile long optsarg, volatile long change_dir)
+static long syz_mount_image(
+    volatile long fsarg,
+    volatile long dir,
+    volatile unsigned long size,
+    volatile unsigned long compressed_size,
+    volatile long flags,
+    volatile long optsarg,
+    volatile long change_dir,
+    volatile long image)
 {
-	struct fs_image_segment* segs = (struct fs_image_segment*)segments;
-	int res = -1, err = 0, loopfd = -1, memfd = -1, need_loop_device = !!segs;
+	unsigned char* data = (unsigned char*)image;
+	int res = -1, err = 0, loopfd = -1, memfd = -1, need_loop_device = !!compressed_size;
 	char* mount_opts = (char*)optsarg;
 	char* target = (char*)dir;
 	char* fs = (char*)fsarg;
@@ -6416,7 +6490,7 @@ static long syz_mount_image(volatile long fsarg, volatile long dir, volatile uns
 	if (need_loop_device) {
 		memset(loopname, 0, sizeof(loopname));
 		snprintf(loopname, sizeof(loopname), "/dev/loop%llu", procid);
-		if (setup_loop_device(size, nsegs, segs, loopname, &memfd, &loopfd) == -1)
+		if (setup_loop_device(size, compressed_size, data, loopname, &memfd, &loopfd) == -1)
 			return -1;
 		source = loopname;
 	}
@@ -6436,7 +6510,7 @@ static long syz_mount_image(volatile long fsarg, volatile long dir, volatile uns
 	} else if (strcmp(fs, "xfs") == 0) {
 		strcat(opts, ",nouuid");
 	}
-	debug("syz_mount_image: size=%llu segs=%llu loop='%s' dir='%s' fs='%s' flags=%llu opts='%s'\n", (uint64)size, (uint64)nsegs, loopname, target, fs, (uint64)flags, opts);
+	debug("syz_mount_image: size=%llu compressed_size=%llu loop='%s' dir='%s' fs='%s' flags=%llu opts='%s'\n", (uint64)size, (uint64)compressed_size, loopname, target, fs, (uint64)flags, opts);
 #if SYZ_EXECUTOR
 	cover_reset(0);
 #endif
