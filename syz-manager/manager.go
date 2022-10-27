@@ -1144,7 +1144,7 @@ func (mgr *Manager) uploadReproAsset(asset *prog.ExtractedAsset) (dashapi.NewAss
 	}
 	switch asset.Type {
 	case prog.MountInRepro:
-		name := fmt.Sprintf("mount_%d", asset.Call)
+		name := fmt.Sprintf("mount_%d.gz", asset.Call)
 		return mgr.assetStorage.UploadCrashAsset(asset.Reader, name,
 			dashapi.MountInRepro, nil)
 	default:
@@ -1156,7 +1156,7 @@ func saveReproAsset(dir string, asset *prog.ExtractedAsset) {
 	path := ""
 	switch asset.Type {
 	case prog.MountInRepro:
-		path = filepath.Join(dir, fmt.Sprintf("repro.mount%d", asset.Call))
+		path = filepath.Join(dir, fmt.Sprintf("repro.mount%d.gz", asset.Call))
 	default:
 		panic("unknown extracted prog asset")
 	}
