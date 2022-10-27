@@ -205,6 +205,13 @@ func (arg *DataArg) Data() []byte {
 	return arg.data
 }
 
+func (arg *DataArg) RawData() []byte {
+	if arg.Dir() == DirOut {
+		panic("getting data of output data arg")
+	}
+	return arg.data
+}
+
 func (arg *DataArg) SetData(data []byte) {
 	if arg.Dir() == DirOut {
 		panic("setting data of output data arg")
