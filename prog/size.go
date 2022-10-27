@@ -127,6 +127,15 @@ func (target *Target) computeSize(arg Arg, offset uint64, lenType *LenType) uint
 			return a.Size() * 8 / bitSize
 		}
 		return uint64(len(a.Inner))
+	case *BufferType:
+		a := arg.(*DataArg)
+		var size uint64
+		if arg.Dir() == DirOut {
+			size = a.size
+		} else { // DirIn / DirInOut
+			size = uint64(len(a.data))
+		}
+		return size * 8 / bitSize
 	default:
 		return arg.Size() * 8 / bitSize
 	}
