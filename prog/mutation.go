@@ -387,6 +387,8 @@ func (t *BufferType) mutate(r *randGen, s *state, arg Arg, ctx ArgCtx) (calls []
 			return // Do not mutate empty data.
 		}
 		hm := MakeGenericHeatmap(data)
+		// Possible mutations.
+		compressedMutationFuncs := [...]func(*randGen, int, int, []byte) []byte{flipBitInByte, replaceIntWithRandom, addOrSubtractInt, setIntToInterestingValue}
 		// At least two mutations, up to about one mutation every 128 KB of heatmap size.
 		numMutations := r.Intn(hm.Size()/(1<<17)+1) + 2
 		for i := 0; i < numMutations; i++ {
@@ -395,7 +397,8 @@ func (t *BufferType) mutate(r *randGen, s *state, arg Arg, ctx ArgCtx) (calls []
 			if index+width > len(data) {
 				width = 1
 			}
-			storeInt(data[index:], r.Uint64(), width)
+			mutationFunc := compressedMutationFuncs[r.Intn(len(compressedMutationFuncs))]
+			data = mutationFunc(r, index, width, data)
 		}
 		a.data = Compress(data)
 	default:
@@ -720,9 +723,7 @@ var mutateDataFuncs = [...]func(r *randGen, data []byte, minLen, maxLen uint64) 
 			return data, false
 		}
 		byt := r.Intn(len(data))
-		bit := r.Intn(8)
-		data[byt] ^= 1 << uint(bit)
-		return data, true
+		return flipBitInByte(r, byt, 1, data), true
 	},
 	// Insert random bytes.
 	func(r *randGen, data []byte, minLen, maxLen uint64) ([]byte, bool) {
@@ -790,8 +791,7 @@ var mutateDataFuncs = [...]func(r *randGen, data []byte, minLen, maxLen uint64) 
 			return data, false
 		}
 		i := r.Intn(len(data) - width + 1)
-		storeInt(data[i:], r.Uint64(), width)
-		return data, true
+		return replaceIntWithRandom(r, i, width, data), true
 	},
 	// Add/subtract from an int8/int16/int32/int64.
 	func(r *randGen, data []byte, minLen, maxLen uint64) ([]byte, bool) {
@@ -800,20 +800,8 @@ var mutateDataFuncs = [...]func(r *randGen, data []byte, minLen, maxLen uint64) 
 			return data, false
 		}
 		i := r.Intn(len(data) - width + 1)
-		v := loadInt(data[i:], width)
-		delta := r.rand(2*maxDelta+1) - maxDelta
-		if delta == 0 {
-			delta = 1
-		}
-		if r.oneOf(10) {
-			v = swapInt(v, width)
-			v += delta
-			v = swapInt(v, width)
-		} else {
-			v += delta
-		}
-		storeInt(data[i:], v, width)
-		return data, true
+
+		return addOrSubtractInt(r, i, width, data), true
 	},
 	// Set int8/int16/int32/int64 to an interesting value.
 	func(r *randGen, data []byte, minLen, maxLen uint64) ([]byte, bool) {
@@ -822,13 +810,47 @@ var mutateDataFuncs = [...]func(r *randGen, data []byte, minLen, maxLen uint64) 
 			return data, false
 		}
 		i := r.Intn(len(data) - width + 1)
-		value := r.randInt64()
-		if r.oneOf(10) {
-			value = swap64(value)
-		}
-		storeInt(data[i:], value, width)
-		return data, true
+		return setIntToInterestingValue(r, i, width, data), true
 	},
+}
+
+func flipBitInByte(r *randGen, idx, width int, data []byte) []byte {
+	for i := idx; i < idx+width; i++ {
+		bit := r.Intn(8)
+		data[i] ^= 1 << uint(bit)
+	}
+	return data
+}
+
+func replaceIntWithRandom(r *randGen, idx, width int, data []byte) []byte {
+	storeInt(data[idx:], r.Uint64(), width)
+	return data
+}
+
+func addOrSubtractInt(r *randGen, idx, width int, data []byte) []byte {
+	v := loadInt(data[idx:], width)
+	delta := r.rand(2*maxDelta+1) - maxDelta
+	if delta == 0 {
+		delta = 1
+	}
+	if r.oneOf(10) {
+		v = swapInt(v, width)
+		v += delta
+		v = swapInt(v, width)
+	} else {
+		v += delta
+	}
+	storeInt(data[idx:], v, width)
+	return data
+}
+
+func setIntToInterestingValue(r *randGen, idx, width int, data []byte) []byte {
+	value := r.randInt64()
+	if r.oneOf(10) {
+		value = swap64(value)
+	}
+	storeInt(data[idx:], value, width)
+	return data
 }
 
 func swap16(v uint16) uint16 {
