@@ -63,21 +63,7 @@ func (m CompMap) String() string {
 // Mutates the program using the comparison operands stored in compMaps.
 // For each of the mutants executes the exec callback.
 func (p *Prog) MutateWithHints(callIndex int, comps CompMap, exec func(p *Prog)) {
-	p = p.Clone()
-	c := p.Calls[callIndex]
-	execValidate := func() {
-		// Don't try to fix the candidate program.
-		// Assuming the original call was sanitized, we've got a bad call
-		// as the result of hint substitution, so just throw it away.
-		if p.Target.sanitize(c, false) != nil {
-			return
-		}
-		p.debugValidate()
-		exec(p)
-	}
-	ForeachArg(c, func(arg Arg, _ *ArgCtx) {
-		generateHints(comps, arg, execValidate)
-	})
+	return
 }
 
 func generateHints(compMap CompMap, arg Arg, exec func()) {
