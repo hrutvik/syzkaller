@@ -386,17 +386,7 @@ func (t *BufferType) mutate(r *randGen, s *state, arg Arg, ctx ArgCtx) (calls []
 		if len(data) == 0 {
 			return // Do not mutate empty data.
 		}
-		hm := MakeGenericHeatmap(data)
-		// At least one mutation, up to about one mutation every 128 KB of heatmap size.
-		numMutations := r.Intn(hm.Size()/(1<<17)+1) + 1
-		for i := 0; i < numMutations; i++ {
-			index := hm.ChooseLocation(r.Rand)
-			width := 1 << uint(r.Intn(4))
-			if index+width > len(data) {
-				width = 1
-			}
-			storeInt(data[index:], r.Uint64(), width)
-		}
+		data = mutateData(r, data, uint64(len(data)), uint64(len(data)))
 		a.data = Compress(data)
 	default:
 		panic("unknown buffer kind")
